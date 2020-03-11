@@ -73,6 +73,7 @@ enum OutputMode {
     Web,
     NoModules { global: String },
     Node { experimental_modules: bool },
+    SSVM,
 }
 
 enum Input {
@@ -151,6 +152,13 @@ impl Bindgen {
                 },
                 "--target nodejs",
             )?;
+        }
+        Ok(self)
+    }
+
+    pub fn ssvm(&mut self, node: bool) -> Result<&mut Bindgen, Error> {
+        if node {
+            self.switch_mode(OutputMode::SSVM, "--target nodejs")?;
         }
         Ok(self)
     }
@@ -534,6 +542,13 @@ impl OutputMode {
     fn nodejs(&self) -> bool {
         match self {
             OutputMode::Node { .. } => true,
+            _ => false,
+        }
+    }
+
+    fn ssvm(&self) -> bool {
+        match self {
+            OutputMode::SSVM { .. } => true,
             _ => false,
         }
     }

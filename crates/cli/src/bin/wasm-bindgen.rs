@@ -98,6 +98,7 @@ fn rmain(args: &Args) -> Result<(), Error> {
             "web" => b.web(true)?,
             "no-modules" => b.no_modules(true)?,
             "nodejs" => b.nodejs(true)?,
+            "ssvm" => b.ssvm(true)?,
             s => bail!("invalid encode-into mode: `{}`", s),
         };
     }

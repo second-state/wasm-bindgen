@@ -125,7 +125,8 @@ impl<'a> Context<'a> {
         let global = match self.config.mode {
             OutputMode::Node {
                 experimental_modules: false,
-            } => {
+            } |
+            OutputMode::SSVM => {
                 if contents.starts_with("class") {
                     format!("{}\nmodule.exports.{1} = {1};\n", contents, export_name)
                 } else {
@@ -266,6 +267,27 @@ impl<'a> Context<'a> {
         reset_indentation(&shim)
     }
 
+    fn generate_ssvm_wasm_loading(&self, path: &Path) -> String {
+        let mut shim = String::new();
+
+        shim.push_str(&format!(
+            "
+            const path = require('path').join(__dirname, '{}');
+            const ssvm = require('bindings')('ssvm');
+            const vm = new ssvm.VM(path)
+        ",
+            path.file_name().unwrap().to_str().unwrap()
+        ));
+
+        shim.push_str(
+            "
+            module.exports.__vm = vm;
+        ",
+        );
+
+        reset_indentation(&shim)
+    }
+
     /// Performs the task of actually generating the final JS module, be it
     /// `--target no-modules`, `--target web`, or for bundlers. This is the very
     /// last step performed in `finalize`.
@@ -325,6 +347,28 @@ impl<'a> Context<'a> {
                 if needs_manual_start {
                     footer.push_str("wasm.__wbindgen_start();\n");
                 }
+            }
+
+            OutputMode::SSVM => {
+                js.push_str(&self.generate_node_imports());
+
+                js.push_str("let vm;\n");
+
+                for (id, js) in crate::sorted_iter(&self.wasm_import_definitions) {
+                    let import = self.module.imports.get_mut(*id);
+                    footer.push_str("\nmodule.exports.");
+                    footer.push_str(&import.name);
+                    footer.push_str(" = ");
+                    footer.push_str(js.trim());
+                    footer.push_str(";\n");
+                }
+
+                footer.push_str(
+                    &self.generate_ssvm_wasm_loading(&Path::new(&format!(
+                        "./{}_bg.wasm",
+                        module_name
+                    ))),
+                );
             }
 
             // With Bundlers and modern ES6 support in Node we can simply import
@@ -417,6 +461,25 @@ impl<'a> Context<'a> {
             OutputMode::Node {
                 experimental_modules: false,
             } => {
+                for (module, items) in crate::sorted_iter(&self.js_imports) {
+                    imports.push_str("const { ");
+                    for (i, (item, rename)) in items.iter().enumerate() {
+                        if i > 0 {
+                            imports.push_str(", ");
+                        }
+                        imports.push_str(item);
+                        if let Some(other) = rename {
+                            imports.push_str(": ");
+                            imports.push_str(other)
+                        }
+                    }
+                    imports.push_str(" } = require(String.raw`");
+                    imports.push_str(module);
+                    imports.push_str("`);\n");
+                }
+            }
+
+            OutputMode::SSVM => {
                 for (module, items) in crate::sorted_iter(&self.js_imports) {
                     imports.push_str("const { ");
                     for (i, (item, rename)) in items.iter().enumerate() {
@@ -739,7 +802,7 @@ impl<'a> Context<'a> {
                     })
             ));
 
-            if self.config.mode.nodejs() {
+            if self.config.mode.nodejs() || self.config.mode.ssvm() {
                 // `util.inspect` must be imported in Node.js to define [inspect.custom]
                 let module_name = self.import_name(&JsImport {
                     name: JsImportName::Module {
