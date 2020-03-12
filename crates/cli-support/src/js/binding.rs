@@ -158,28 +158,58 @@ impl<'a, 'b> Builder<'a, 'b> {
         // more JIT-friendly. The generated code should be equivalent to the
         // wasm interface types stack machine, however.
         for instr in instructions {
-            instruction(&mut js, &instr.instr, &mut self.log_error)?;
+            if js.cx.config.mode.ssvm() {
+                instruction_ssvm(&mut js, &instr.instr, &mut self.log_error)?;
+            } else {
+                instruction(&mut js, &instr.instr, &mut self.log_error)?;
+            }
         }
 
-        assert_eq!(js.stack.len(), adapter.results.len());
-        match js.stack.len() {
-            0 => {}
-            1 => {
-                let val = js.pop();
-                js.prelude(&format!("return {};", val));
-            }
+        if js.cx.config.mode.ssvm() {
+            match js.stack.len() {
+                1 => {
+                    let val = js.pop();
+                    js.prelude(&format!("{}", val));
+                }
+                2 => {
+                    let r = js.pop();
+                    let val = js.pop();
+                    js.prelude(&format!("{} {}", r, val));
+                }
 
-            // TODO: this should be pretty trivial to support (commented out
-            // code below), but we should be sure to have a test for this
-            // somewhere. Currently I don't think it's possible to actually
-            // exercise this with just Rust code, so let's wait until we get
-            // some tests to enable this path.
-            _ => bail!("multi-value returns from adapters not supported yet"),
-            // _ => {
-            //     let expr = js.stack.join(", ");
-            //     js.stack.truncate(0);
-            //     js.prelude(&format!("return [{}];", expr));
-            // }
+                // TODO: this should be pretty trivial to support (commented out
+                // code below), but we should be sure to have a test for this
+                // somewhere. Currently I don't think it's possible to actually
+                // exercise this with just Rust code, so let's wait until we get
+                // some tests to enable this path.
+                _ => bail!("multi-value returns from adapters not supported yet"),
+                // _ => {
+                //     let expr = js.stack.join(", ");
+                //     js.stack.truncate(0);
+                //     js.prelude(&format!("return [{}];", expr));
+                // }
+            }
+        } else {
+            assert_eq!(js.stack.len(), adapter.results.len());
+            match js.stack.len() {
+                0 => {}
+                1 => {
+                    let val = js.pop();
+                    js.prelude(&format!("return {};", val));
+                }
+
+                // TODO: this should be pretty trivial to support (commented out
+                // code below), but we should be sure to have a test for this
+                // somewhere. Currently I don't think it's possible to actually
+                // exercise this with just Rust code, so let's wait until we get
+                // some tests to enable this path.
+                _ => bail!("multi-value returns from adapters not supported yet"),
+                // _ => {
+                //     let expr = js.stack.join(", ");
+                //     js.stack.truncate(0);
+                //     js.prelude(&format!("return [{}];", expr));
+                // }
+            }
         }
         assert!(js.stack.is_empty());
 
@@ -458,6 +488,87 @@ impl<'a, 'b> JsBuilder<'a, 'b> {
         self.push(format!("len{}", i));
         Ok(())
     }
+
+    fn string_to_memory_ssvm(
+        &mut self,
+        malloc: walrus::FunctionId,
+        realloc: Option<walrus::FunctionId>,
+    ) {
+        self.cx.export_name_of(malloc);
+        match realloc {
+            Some(f) => {self.cx.export_name_of(f);}
+            None => {}
+        };
+        let val = self.pop();
+        self.push(format!(
+            "{0}",
+            val,
+        ));
+    }
+}
+
+fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut bool) -> Result<(), Error> {
+    match instr {
+        Instruction::Standard(wit_walrus::Instruction::ArgGet(n)) => {
+            let arg = js.arg(*n).to_string();
+            js.push(arg);
+        }
+
+        Instruction::CallExport(_) => {
+            let invoc = Invocation::from(instr, js.cx.module)?;
+            let (_, results) = invoc.params_results(js.cx);
+
+            // Pop off the number of parameters for the function we're calling
+            let mut args = Vec::new();
+            for _ in 0..js.stack.len() {
+                args.push(js.pop());
+            }
+            args.reverse();
+
+            // Call the function through an export of the underlying module.
+            let call = invoc.invoke_ssvm(js.cx, &args, &mut js.prelude, log_error)?;
+
+            // And then figure out how to actually handle where the call
+            // happens. This is pretty conditional depending on the number of
+            // return values of the function.
+            match (invoc.defer(), results) {
+                (true, 0) => {
+                    js.finally(&format!("{};", call));
+                    js.stack.extend(args);
+                }
+                (true, _) => panic!("deferred calls must have no results"),
+                (false, 0) => js.push(format!("{};", call)),
+                (false, _n) => {
+                    js.push(format!("return {};", call))
+                }
+            }
+        }
+
+        Instruction::Standard(wit_walrus::Instruction::DeferCallCore(_)) => {
+            let invoc = Invocation::from(instr, js.cx.module)?;
+            match invoc {
+                Invocation::Core { id, .. } => {
+                    js.cx.export_name_of(id);
+                }
+                Invocation::Adapter(_id) => {}
+            }
+        }
+
+        Instruction::Standard(wit_walrus::Instruction::MemoryToString(_mem)) => {
+            js.push("return".to_string());
+        }
+
+        Instruction::StringToMemory {
+            mem: _,
+            malloc,
+            realloc,
+        } => {
+            js.string_to_memory_ssvm(*malloc, *realloc);
+        }
+
+        _ => {}
+    }
+    Ok(())
 }
 
 fn instruction(js: &mut JsBuilder, instr: &Instruction, log_error: &mut bool) -> Result<(), Error> {
@@ -1207,6 +1318,25 @@ impl Invocation {
                 }
                 cx.invoke_import(import, kind, args, variadic, prelude)
             }
+        }
+    }
+    
+    fn invoke_ssvm(
+        &self,
+        cx: &mut Context,
+        args: &[String],
+        _prelude: &mut String,
+        _log_error: &mut bool,
+    ) -> Result<String, Error> {
+        match self {
+            Invocation::Core { id, .. } => {
+                let name = cx.export_name_of(*id);
+                Ok(format!("vm.run('{}', {})", name, args.join(", ")))
+            }
+            Invocation::Adapter(_id) => {
+                Ok("".to_string())
+            }
+
         }
     }
 

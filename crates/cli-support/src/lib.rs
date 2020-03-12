@@ -158,7 +158,7 @@ impl Bindgen {
 
     pub fn ssvm(&mut self, node: bool) -> Result<&mut Bindgen, Error> {
         if node {
-            self.switch_mode(OutputMode::SSVM, "--target nodejs")?;
+            self.switch_mode(OutputMode::SSVM, "--target ssvm")?;
         }
         Ok(self)
     }

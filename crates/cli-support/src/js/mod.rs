@@ -274,16 +274,10 @@ impl<'a> Context<'a> {
             "
             const path = require('path').join(__dirname, '{}');
             const ssvm = require('bindings')('ssvm');
-            const vm = new ssvm.VM(path)
+            vm = new ssvm.VM(path)
         ",
             path.file_name().unwrap().to_str().unwrap()
         ));
-
-        shim.push_str(
-            "
-            module.exports.__vm = vm;
-        ",
-        );
 
         reset_indentation(&shim)
     }
@@ -987,7 +981,7 @@ impl<'a> Context<'a> {
         // but it does have `Buffer::write` which has similar semantics but
         // doesn't require creating intermediate view using `subarray`
         // and also has `Buffer::byteLength` to calculate size upfront.
-        if self.config.mode.nodejs() {
+        if self.config.mode.nodejs() || self.config.mode.ssvm() {
             let get_buf = self.expose_node_buffer_memory(memory);
             let ret = MemView {
                 name: "passStringToWasm",
@@ -1283,7 +1277,7 @@ impl<'a> Context<'a> {
     }
 
     fn expose_text_processor(&mut self, s: &str, args: &str) -> Result<(), Error> {
-        if self.config.mode.nodejs() {
+        if self.config.mode.nodejs() || self.config.mode.ssvm() {
             let name = self.import_name(&JsImport {
                 name: JsImportName::Module {
                     module: "util".to_string(),
@@ -2211,6 +2205,7 @@ impl<'a> Context<'a> {
                 Kind::Adapter => format!("failed to generates bindings for adapter"),
             })?;
 
+
         // Once we've got all the JS then put it in the right location depending
         // on what's being exported.
         match kind {
@@ -2978,7 +2973,7 @@ impl<'a> Context<'a> {
     }
 
     fn process_package_json(&mut self, path: &Path) -> Result<(), Error> {
-        if !self.config.mode.nodejs() && !self.config.mode.bundler() {
+        if !self.config.mode.nodejs() && !self.config.mode.ssvm() && !self.config.mode.bundler() {
             bail!(
                 "NPM dependencies have been specified in `{}` but \
                  this is only compatible with the `bundler` and `nodejs` targets",
