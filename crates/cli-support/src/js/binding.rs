@@ -539,7 +539,7 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
                 (true, _) => panic!("deferred calls must have no results"),
                 (false, 0) => js.push(format!("{};", call)),
                 (false, _n) => {
-                    js.push(format!("return {};", call))
+                    js.push(format!("return {};", call.replace(".Run(", ".RunInt(")))
                 }
             }
         }
@@ -555,7 +555,9 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
         }
 
         Instruction::Standard(wit_walrus::Instruction::MemoryToString(_mem)) => {
-            js.push("return".to_string());
+            let call = js.pop();
+            let call = call.replace(".Run(", ".RunString(");
+            js.push(format!("return {}", call));
         }
 
         Instruction::StringToMemory {
@@ -1331,7 +1333,7 @@ impl Invocation {
         match self {
             Invocation::Core { id, .. } => {
                 let name = cx.export_name_of(*id);
-                Ok(format!("vm.run('{}', {})", name, args.join(", ")))
+                Ok(format!("vm.Run('{}', {})", name, args.join(", ")))
             }
             Invocation::Adapter(_id) => {
                 Ok("".to_string())
