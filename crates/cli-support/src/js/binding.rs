@@ -568,6 +568,12 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
             js.string_to_memory_ssvm(*malloc, *realloc);
         }
 
+        Instruction::VectorLoad { kind, mem, free } => {
+            let call = js.pop();
+            let call = call.replace(".Run(", ".RunUint8Array(");
+            js.push(format!("return {}", call));
+        }
+
         _ => {}
     }
     Ok(())
