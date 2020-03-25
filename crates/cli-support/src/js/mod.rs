@@ -273,7 +273,7 @@ impl<'a> Context<'a> {
         shim.push_str(&format!(
             "
             const path = require('path').join(__dirname, '{}');
-            const ssvm = require('bindings')('ssvm');
+            const ssvm = require('ssvm-napi');
             vm = new ssvm.VM(path)
         ",
             path.file_name().unwrap().to_str().unwrap()
