@@ -568,7 +568,7 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
             js.string_to_memory_ssvm(*malloc, *realloc);
         }
 
-        Instruction::VectorLoad { kind, mem, free } => {
+        Instruction::VectorLoad { kind: _, mem: _, free: _ } => {
             let call = js.pop();
             let call = call.replace(".Run(", ".RunUint8Array(");
             js.push(format!("return {}", call));
@@ -1339,7 +1339,7 @@ impl Invocation {
         match self {
             Invocation::Core { id, .. } => {
                 let name = cx.export_name_of(*id);
-                Ok(format!("vm.Run('{}', {})", name, args.join(", ")))
+                Ok(format!("vm.Run('{}'{})", name, args.iter().map(|x| ", ".to_owned() + &x).collect::<Vec<String>>().join("")))
             }
             Invocation::Adapter(_id) => {
                 Ok("".to_string())
