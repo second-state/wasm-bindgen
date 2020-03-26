@@ -2104,17 +2104,17 @@ mod gen_GpuBindGroup;
 #[cfg(feature = "GpuBindGroup")]
 pub use gen_GpuBindGroup::*;
 
-#[cfg(feature = "GpuBindGroupBinding")]
-#[allow(non_snake_case)]
-mod gen_GpuBindGroupBinding;
-#[cfg(feature = "GpuBindGroupBinding")]
-pub use gen_GpuBindGroupBinding::*;
-
 #[cfg(feature = "GpuBindGroupDescriptor")]
 #[allow(non_snake_case)]
 mod gen_GpuBindGroupDescriptor;
 #[cfg(feature = "GpuBindGroupDescriptor")]
 pub use gen_GpuBindGroupDescriptor::*;
+
+#[cfg(feature = "GpuBindGroupEntry")]
+#[allow(non_snake_case)]
+mod gen_GpuBindGroupEntry;
+#[cfg(feature = "GpuBindGroupEntry")]
+pub use gen_GpuBindGroupEntry::*;
 
 #[cfg(feature = "GpuBindGroupLayout")]
 #[allow(non_snake_case)]
@@ -2122,17 +2122,17 @@ mod gen_GpuBindGroupLayout;
 #[cfg(feature = "GpuBindGroupLayout")]
 pub use gen_GpuBindGroupLayout::*;
 
-#[cfg(feature = "GpuBindGroupLayoutBinding")]
-#[allow(non_snake_case)]
-mod gen_GpuBindGroupLayoutBinding;
-#[cfg(feature = "GpuBindGroupLayoutBinding")]
-pub use gen_GpuBindGroupLayoutBinding::*;
-
 #[cfg(feature = "GpuBindGroupLayoutDescriptor")]
 #[allow(non_snake_case)]
 mod gen_GpuBindGroupLayoutDescriptor;
 #[cfg(feature = "GpuBindGroupLayoutDescriptor")]
 pub use gen_GpuBindGroupLayoutDescriptor::*;
+
+#[cfg(feature = "GpuBindGroupLayoutEntry")]
+#[allow(non_snake_case)]
+mod gen_GpuBindGroupLayoutEntry;
+#[cfg(feature = "GpuBindGroupLayoutEntry")]
+pub use gen_GpuBindGroupLayoutEntry::*;
 
 #[cfg(feature = "GpuBindingType")]
 #[allow(non_snake_case)]
@@ -7587,6 +7587,198 @@ pub use gen_XmlHttpRequestUpload::*;
 mod gen_XmlSerializer;
 #[cfg(feature = "XmlSerializer")]
 pub use gen_XmlSerializer::*;
+
+#[cfg(feature = "Xr")]
+#[allow(non_snake_case)]
+mod gen_Xr;
+#[cfg(feature = "Xr")]
+pub use gen_Xr::*;
+
+#[cfg(feature = "XrBoundedReferenceSpace")]
+#[allow(non_snake_case)]
+mod gen_XrBoundedReferenceSpace;
+#[cfg(feature = "XrBoundedReferenceSpace")]
+pub use gen_XrBoundedReferenceSpace::*;
+
+#[cfg(feature = "XrEye")]
+#[allow(non_snake_case)]
+mod gen_XrEye;
+#[cfg(feature = "XrEye")]
+pub use gen_XrEye::*;
+
+#[cfg(feature = "XrFrame")]
+#[allow(non_snake_case)]
+mod gen_XrFrame;
+#[cfg(feature = "XrFrame")]
+pub use gen_XrFrame::*;
+
+#[cfg(feature = "XrHandedness")]
+#[allow(non_snake_case)]
+mod gen_XrHandedness;
+#[cfg(feature = "XrHandedness")]
+pub use gen_XrHandedness::*;
+
+#[cfg(feature = "XrInputSource")]
+#[allow(non_snake_case)]
+mod gen_XrInputSource;
+#[cfg(feature = "XrInputSource")]
+pub use gen_XrInputSource::*;
+
+#[cfg(feature = "XrInputSourceArray")]
+#[allow(non_snake_case)]
+mod gen_XrInputSourceArray;
+#[cfg(feature = "XrInputSourceArray")]
+pub use gen_XrInputSourceArray::*;
+
+#[cfg(feature = "XrInputSourceEvent")]
+#[allow(non_snake_case)]
+mod gen_XrInputSourceEvent;
+#[cfg(feature = "XrInputSourceEvent")]
+pub use gen_XrInputSourceEvent::*;
+
+#[cfg(feature = "XrInputSourceEventInit")]
+#[allow(non_snake_case)]
+mod gen_XrInputSourceEventInit;
+#[cfg(feature = "XrInputSourceEventInit")]
+pub use gen_XrInputSourceEventInit::*;
+
+#[cfg(feature = "XrInputSourcesChangeEvent")]
+#[allow(non_snake_case)]
+mod gen_XrInputSourcesChangeEvent;
+#[cfg(feature = "XrInputSourcesChangeEvent")]
+pub use gen_XrInputSourcesChangeEvent::*;
+
+#[cfg(feature = "XrInputSourcesChangeEventInit")]
+#[allow(non_snake_case)]
+mod gen_XrInputSourcesChangeEventInit;
+#[cfg(feature = "XrInputSourcesChangeEventInit")]
+pub use gen_XrInputSourcesChangeEventInit::*;
+
+#[cfg(feature = "XrPose")]
+#[allow(non_snake_case)]
+mod gen_XrPose;
+#[cfg(feature = "XrPose")]
+pub use gen_XrPose::*;
+
+#[cfg(feature = "XrReferenceSpace")]
+#[allow(non_snake_case)]
+mod gen_XrReferenceSpace;
+#[cfg(feature = "XrReferenceSpace")]
+pub use gen_XrReferenceSpace::*;
+
+#[cfg(feature = "XrReferenceSpaceEvent")]
+#[allow(non_snake_case)]
+mod gen_XrReferenceSpaceEvent;
+#[cfg(feature = "XrReferenceSpaceEvent")]
+pub use gen_XrReferenceSpaceEvent::*;
+
+#[cfg(feature = "XrReferenceSpaceEventInit")]
+#[allow(non_snake_case)]
+mod gen_XrReferenceSpaceEventInit;
+#[cfg(feature = "XrReferenceSpaceEventInit")]
+pub use gen_XrReferenceSpaceEventInit::*;
+
+#[cfg(feature = "XrReferenceSpaceType")]
+#[allow(non_snake_case)]
+mod gen_XrReferenceSpaceType;
+#[cfg(feature = "XrReferenceSpaceType")]
+pub use gen_XrReferenceSpaceType::*;
+
+#[cfg(feature = "XrRenderState")]
+#[allow(non_snake_case)]
+mod gen_XrRenderState;
+#[cfg(feature = "XrRenderState")]
+pub use gen_XrRenderState::*;
+
+#[cfg(feature = "XrRenderStateInit")]
+#[allow(non_snake_case)]
+mod gen_XrRenderStateInit;
+#[cfg(feature = "XrRenderStateInit")]
+pub use gen_XrRenderStateInit::*;
+
+#[cfg(feature = "XrRigidTransform")]
+#[allow(non_snake_case)]
+mod gen_XrRigidTransform;
+#[cfg(feature = "XrRigidTransform")]
+pub use gen_XrRigidTransform::*;
+
+#[cfg(feature = "XrSession")]
+#[allow(non_snake_case)]
+mod gen_XrSession;
+#[cfg(feature = "XrSession")]
+pub use gen_XrSession::*;
+
+#[cfg(feature = "XrSessionEvent")]
+#[allow(non_snake_case)]
+mod gen_XrSessionEvent;
+#[cfg(feature = "XrSessionEvent")]
+pub use gen_XrSessionEvent::*;
+
+#[cfg(feature = "XrSessionEventInit")]
+#[allow(non_snake_case)]
+mod gen_XrSessionEventInit;
+#[cfg(feature = "XrSessionEventInit")]
+pub use gen_XrSessionEventInit::*;
+
+#[cfg(feature = "XrSessionInit")]
+#[allow(non_snake_case)]
+mod gen_XrSessionInit;
+#[cfg(feature = "XrSessionInit")]
+pub use gen_XrSessionInit::*;
+
+#[cfg(feature = "XrSessionMode")]
+#[allow(non_snake_case)]
+mod gen_XrSessionMode;
+#[cfg(feature = "XrSessionMode")]
+pub use gen_XrSessionMode::*;
+
+#[cfg(feature = "XrSpace")]
+#[allow(non_snake_case)]
+mod gen_XrSpace;
+#[cfg(feature = "XrSpace")]
+pub use gen_XrSpace::*;
+
+#[cfg(feature = "XrTargetRayMode")]
+#[allow(non_snake_case)]
+mod gen_XrTargetRayMode;
+#[cfg(feature = "XrTargetRayMode")]
+pub use gen_XrTargetRayMode::*;
+
+#[cfg(feature = "XrView")]
+#[allow(non_snake_case)]
+mod gen_XrView;
+#[cfg(feature = "XrView")]
+pub use gen_XrView::*;
+
+#[cfg(feature = "XrViewerPose")]
+#[allow(non_snake_case)]
+mod gen_XrViewerPose;
+#[cfg(feature = "XrViewerPose")]
+pub use gen_XrViewerPose::*;
+
+#[cfg(feature = "XrViewport")]
+#[allow(non_snake_case)]
+mod gen_XrViewport;
+#[cfg(feature = "XrViewport")]
+pub use gen_XrViewport::*;
+
+#[cfg(feature = "XrVisibilityState")]
+#[allow(non_snake_case)]
+mod gen_XrVisibilityState;
+#[cfg(feature = "XrVisibilityState")]
+pub use gen_XrVisibilityState::*;
+
+#[cfg(feature = "XrWebGlLayer")]
+#[allow(non_snake_case)]
+mod gen_XrWebGlLayer;
+#[cfg(feature = "XrWebGlLayer")]
+pub use gen_XrWebGlLayer::*;
+
+#[cfg(feature = "XrWebGlLayerInit")]
+#[allow(non_snake_case)]
+mod gen_XrWebGlLayerInit;
+#[cfg(feature = "XrWebGlLayerInit")]
+pub use gen_XrWebGlLayerInit::*;
 
 #[cfg(feature = "XsltProcessor")]
 #[allow(non_snake_case)]
