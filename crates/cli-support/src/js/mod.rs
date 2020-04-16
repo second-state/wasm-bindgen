@@ -344,10 +344,11 @@ impl<'a> Context<'a> {
             }
 
             OutputMode::SSVM => {
-                js.push_str(&self.generate_node_imports());
+                // js.push_str(&self.generate_node_imports());
 
                 js.push_str("let vm;\n");
 
+                /*
                 for (id, js) in crate::sorted_iter(&self.wasm_import_definitions) {
                     let import = self.module.imports.get_mut(*id);
                     footer.push_str("\nmodule.exports.");
@@ -356,6 +357,7 @@ impl<'a> Context<'a> {
                     footer.push_str(js.trim());
                     footer.push_str(";\n");
                 }
+                */
 
                 footer.push_str(
                     &self.generate_ssvm_wasm_loading(&Path::new(&format!(

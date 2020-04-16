@@ -183,10 +183,10 @@ impl<'a, 'b> Builder<'a, 'b> {
                     let val = js.pop();
                     js.prelude(&format!("{}", val));
                 }
-                2 => {
-                    let r = js.pop();
-                    let val = js.pop();
-                    js.prelude(&format!("{} {}", r, val));
+                n => {
+                    for _ in 0..n {
+                        js.pop();
+                    }
                 }
 
                 // TODO: this should be pretty trivial to support (commented out
@@ -194,7 +194,7 @@ impl<'a, 'b> Builder<'a, 'b> {
                 // somewhere. Currently I don't think it's possible to actually
                 // exercise this with just Rust code, so let's wait until we get
                 // some tests to enable this path.
-                _ => bail!("multi-value returns from adapters not supported yet"),
+                // _ => bail!("multi-value returns from adapters not supported yet"),
                 // _ => {
                 //     let expr = js.stack.join(", ");
                 //     js.stack.truncate(0);
@@ -253,22 +253,24 @@ impl<'a, 'b> Builder<'a, 'b> {
         }
 
         let mut call = js.prelude;
-        if js.finally.len() != 0 {
-            call = format!("try {{\n{}}} finally {{\n{}}}\n", call, js.finally);
-        }
+        if !js.cx.config.mode.ssvm() {
+            if js.finally.len() != 0 {
+                call = format!("try {{\n{}}} finally {{\n{}}}\n", call, js.finally);
+            }
 
-        if self.catch {
-            js.cx.expose_handle_error()?;
-            call = format!("try {{\n{}}} catch (e) {{\n handleError(e)\n}}\n", call);
-        }
+            if self.catch {
+                js.cx.expose_handle_error()?;
+                call = format!("try {{\n{}}} catch (e) {{\n handleError(e)\n}}\n", call);
+            }
 
-        // Generate a try/catch block in debug mode which handles unexpected and
-        // unhandled exceptions, typically used on imports. This currently just
-        // logs what happened, but keeps the exception being thrown to propagate
-        // elsewhere.
-        if self.log_error {
-            js.cx.expose_log_error();
-            call = format!("try {{\n{}}} catch (e) {{\n logError(e)\n}}\n", call);
+            // Generate a try/catch block in debug mode which handles unexpected and
+            // unhandled exceptions, typically used on imports. This currently just
+            // logs what happened, but keeps the exception being thrown to propagate
+            // elsewhere.
+            if self.log_error {
+                js.cx.expose_log_error();
+                call = format!("try {{\n{}}} catch (e) {{\n logError(e)\n}}\n", call);
+            }
         }
 
         code.push_str(&call);
