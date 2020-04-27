@@ -274,7 +274,7 @@ impl<'a> Context<'a> {
             "
             const path = require('path').join(__dirname, '{}');
             const ssvm = require('ssvm');
-            vm = new ssvm.VM(path)
+            vm = new ssvm.VM(path);
         ",
             path.file_name().unwrap().to_str().unwrap()
         ));
@@ -344,11 +344,10 @@ impl<'a> Context<'a> {
             }
 
             OutputMode::SSVM => {
-                // js.push_str(&self.generate_node_imports());
+                js.push_str(&self.generate_node_imports());
 
                 js.push_str("let vm;\n");
 
-                /*
                 for (id, js) in crate::sorted_iter(&self.wasm_import_definitions) {
                     let import = self.module.imports.get_mut(*id);
                     footer.push_str("\nmodule.exports.");
@@ -357,7 +356,6 @@ impl<'a> Context<'a> {
                     footer.push_str(js.trim());
                     footer.push_str(";\n");
                 }
-                */
 
                 footer.push_str(
                     &self.generate_ssvm_wasm_loading(&Path::new(&format!(
@@ -416,11 +414,11 @@ impl<'a> Context<'a> {
         js.push_str("\n");
         js.push_str(&self.imports_post);
         js.push_str("\n");
-
+        
         // Emit all our exports from this module
         js.push_str(&self.globals);
         js.push_str("\n");
-
+        
         // Generate the initialization glue, if there was any
         js.push_str(&init_js);
         js.push_str("\n");
@@ -1583,16 +1581,21 @@ impl<'a> Context<'a> {
             return view;
         }
         let mem = self.export_name_of(memory);
+        let mut wasm_or_ssvm = "wasm";
+        if self.config.mode.ssvm() {
+            wasm_or_ssvm = "vm";
+        }
         self.global(&format!(
             "
             let cache{name} = null;
             function {name}() {{
-                if (cache{name} === null || cache{name}.buffer !== wasm.{mem}.buffer) {{
-                    cache{name} = {js}(wasm.{mem}.buffer);
+                if (cache{name} === null || cache{name}.buffer !== {wos}.{mem}.buffer) {{
+                    cache{name} = {js}({wos}.{mem}.buffer);
                 }}
                 return cache{name};
             }}
             ",
+            wos = wasm_or_ssvm,
             name = view,
             js = js,
             mem = mem,
@@ -2180,11 +2183,12 @@ impl<'a> Context<'a> {
         });
         builder.catch(catch);
         let mut arg_names = &None;
+        let mut export_fn = false;
         match kind {
             Kind::Export(export) => {
                 arg_names = &export.arg_names;
                 match &export.kind {
-                    AuxExportKind::Function(_) => {}
+                    AuxExportKind::Function(_) => export_fn = true,
                     AuxExportKind::StaticFunction { .. } => {}
                     AuxExportKind::Constructor(class) => builder.constructor(class),
                     AuxExportKind::Getter { .. } | AuxExportKind::Setter { .. } => {
@@ -2206,7 +2210,7 @@ impl<'a> Context<'a> {
             code,
             might_be_optional_field,
         } = builder
-            .process(&adapter, instrs, arg_names)
+            .process(&adapter, instrs, arg_names, export_fn)
             .with_context(|| match kind {
                 Kind::Export(e) => format!("failed to generate bindings for `{}`", e.debug_name),
                 Kind::Import(i) => {

@@ -100,6 +100,7 @@ impl<'a, 'b> Builder<'a, 'b> {
         adapter: &Adapter,
         instructions: &[InstructionData],
         explicit_arg_names: &Option<Vec<String>>,
+        export_fn: bool,
     ) -> Result<JsFunction, Error> {
         if self
             .cx
@@ -170,58 +171,31 @@ impl<'a, 'b> Builder<'a, 'b> {
         // more JIT-friendly. The generated code should be equivalent to the
         // wasm interface types stack machine, however.
         for instr in instructions {
-            if js.cx.config.mode.ssvm() {
+            if export_fn && js.cx.config.mode.ssvm() {
                 instruction_ssvm(&mut js, &instr.instr, &mut self.log_error)?;
             } else {
                 instruction(&mut js, &instr.instr, &mut self.log_error)?;
             }
         }
-
-        if js.cx.config.mode.ssvm() {
-            match js.stack.len() {
-                1 => {
-                    let val = js.pop();
-                    js.prelude(&format!("{}", val));
-                }
-                n => {
-                    for _ in 0..n {
-                        js.pop();
-                    }
-                }
-
-                // TODO: this should be pretty trivial to support (commented out
-                // code below), but we should be sure to have a test for this
-                // somewhere. Currently I don't think it's possible to actually
-                // exercise this with just Rust code, so let's wait until we get
-                // some tests to enable this path.
-                // _ => bail!("multi-value returns from adapters not supported yet"),
-                // _ => {
-                //     let expr = js.stack.join(", ");
-                //     js.stack.truncate(0);
-                //     js.prelude(&format!("return [{}];", expr));
-                // }
+        assert_eq!(js.stack.len(), adapter.results.len());
+        match js.stack.len() {
+            0 => {}
+            1 => {
+                let val = js.pop();
+                js.prelude(&format!("return {};", val));
             }
-        } else {
-            assert_eq!(js.stack.len(), adapter.results.len());
-            match js.stack.len() {
-                0 => {}
-                1 => {
-                    let val = js.pop();
-                    js.prelude(&format!("return {};", val));
-                }
 
-                // TODO: this should be pretty trivial to support (commented out
-                // code below), but we should be sure to have a test for this
-                // somewhere. Currently I don't think it's possible to actually
-                // exercise this with just Rust code, so let's wait until we get
-                // some tests to enable this path.
-                _ => bail!("multi-value returns from adapters not supported yet"),
-                // _ => {
-                //     let expr = js.stack.join(", ");
-                //     js.stack.truncate(0);
-                //     js.prelude(&format!("return [{}];", expr));
-                // }
-            }
+            // TODO: this should be pretty trivial to support (commented out
+            // code below), but we should be sure to have a test for this
+            // somewhere. Currently I don't think it's possible to actually
+            // exercise this with just Rust code, so let's wait until we get
+            // some tests to enable this path.
+            _ => bail!("multi-value returns from adapters not supported yet"),
+            // _ => {
+            //     let expr = js.stack.join(", ");
+            //     js.stack.truncate(0);
+            //     js.prelude(&format!("return [{}];", expr));
+            // }
         }
         assert!(js.stack.is_empty());
 
@@ -253,25 +227,23 @@ impl<'a, 'b> Builder<'a, 'b> {
         }
 
         let mut call = js.prelude;
-        if !js.cx.config.mode.ssvm() {
-            if js.finally.len() != 0 {
-                call = format!("try {{\n{}}} finally {{\n{}}}\n", call, js.finally);
-            }
-
-            if self.catch {
-                js.cx.expose_handle_error()?;
-                call = format!("try {{\n{}}} catch (e) {{\n handleError(e)\n}}\n", call);
-            }
-
-            // Generate a try/catch block in debug mode which handles unexpected and
-            // unhandled exceptions, typically used on imports. This currently just
-            // logs what happened, but keeps the exception being thrown to propagate
-            // elsewhere.
-            if self.log_error {
-                js.cx.expose_log_error();
-                call = format!("try {{\n{}}} catch (e) {{\n logError(e)\n}}\n", call);
-            }
+        if js.finally.len() != 0 {
+            call = format!("try {{\n{}}} finally {{\n{}}}\n", call, js.finally);
         }
+
+        if self.catch {
+            js.cx.expose_handle_error()?;
+            call = format!("try {{\n{}}} catch (e) {{\n handleError(e)\n}}\n", call);
+        }
+
+        // Generate a try/catch block in debug mode which handles unexpected and
+        // unhandled exceptions, typically used on imports. This currently just
+        // logs what happened, but keeps the exception being thrown to propagate
+        // elsewhere.
+        if self.log_error {
+            js.cx.expose_log_error();
+            call = format!("try {{\n{}}} catch (e) {{\n logError(e)\n}}\n", call);
+            }
 
         code.push_str(&call);
         code.push_str("}");
@@ -584,7 +556,7 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
                 (true, _) => panic!("deferred calls must have no results"),
                 (false, 0) => js.push(format!("{};", call)),
                 (false, _n) => {
-                    js.push(format!("return {};", call.replace(".Run(", ".RunInt(")))
+                    js.push(format!("{};", call.replace(".Run(", ".RunInt(")))
                 }
             }
         }
@@ -601,8 +573,7 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
 
         Instruction::Standard(wit_walrus::Instruction::MemoryToString(_mem)) => {
             let call = js.pop();
-            let call = call.replace(".Run(", ".RunString(");
-            js.push(format!("return {}", call));
+            js.push(format!("{};", call.replace(".Run(", ".RunString(")));
         }
 
         Instruction::StringToMemory {
@@ -615,8 +586,7 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
 
         Instruction::VectorLoad { kind: _, mem: _, free: _ } => {
             let call = js.pop();
-            let call = call.replace(".Run(", ".RunUint8Array(");
-            js.push(format!("return {}", call));
+            js.push(format!("{};", call.replace(".Run(", ".RunUint8Array(")));
         }
 
         _ => {}
