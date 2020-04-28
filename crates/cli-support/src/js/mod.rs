@@ -274,7 +274,7 @@ impl<'a> Context<'a> {
             "
             const path = require('path').join(__dirname, '{}');
             const ssvm = require('ssvm');
-            vm = new ssvm.VM(path);
+            vm = new ssvm.VM(path, imports);
         ",
             path.file_name().unwrap().to_str().unwrap()
         ));
@@ -1721,17 +1721,23 @@ impl<'a> Context<'a> {
             .exn_store
             .ok_or_else(|| anyhow!("failed to find `__wbindgen_exn_store` intrinsic"))?;
         let store = self.export_name_of(store);
+        let mut wasm_or_ssvm = "wasm";
+        if self.config.mode.ssvm() {
+            wasm_or_ssvm = "vm";
+        }
         match (self.aux.anyref_table, self.aux.anyref_alloc) {
             (Some(table), Some(alloc)) => {
                 let add = self.expose_add_to_anyref_table(table, alloc)?;
                 self.global(&format!(
                     "
                     function handleError(e) {{
-                        const idx = {}(e);
-                        wasm.{}(idx);
+                        const idx = {add}(e);
+                        {wos}.{store}(idx);
                     }}
                     ",
-                    add, store,
+                    wos = wasm_or_ssvm,
+                    add = add,
+                    store = store,
                 ));
             }
             _ => {
@@ -1739,9 +1745,10 @@ impl<'a> Context<'a> {
                 self.global(&format!(
                     "
                     function handleError(e) {{
-                        wasm.{}(addHeapObject(e));
+                        {}.{}(addHeapObject(e));
                     }}
                     ",
+                    wasm_or_ssvm,
                     store,
                 ));
             }

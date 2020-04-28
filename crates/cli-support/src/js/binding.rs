@@ -177,25 +177,52 @@ impl<'a, 'b> Builder<'a, 'b> {
                 instruction(&mut js, &instr.instr, &mut self.log_error)?;
             }
         }
-        assert_eq!(js.stack.len(), adapter.results.len());
-        match js.stack.len() {
-            0 => {}
-            1 => {
-                let val = js.pop();
-                js.prelude(&format!("return {};", val));
-            }
 
-            // TODO: this should be pretty trivial to support (commented out
-            // code below), but we should be sure to have a test for this
-            // somewhere. Currently I don't think it's possible to actually
-            // exercise this with just Rust code, so let's wait until we get
-            // some tests to enable this path.
-            _ => bail!("multi-value returns from adapters not supported yet"),
-            // _ => {
-            //     let expr = js.stack.join(", ");
-            //     js.stack.truncate(0);
-            //     js.prelude(&format!("return [{}];", expr));
-            // }
+        if js.cx.config.mode.ssvm() {
+            match js.stack.len() {
+                0 => {}
+                1 => {
+                    let val = js.pop();
+                    if adapter.results.len() == 0 {
+                        js.prelude(&format!("{};", val));
+                    } else {
+                        js.prelude(&format!("return {};", val));
+                    }
+                }
+
+                // TODO: this should be pretty trivial to support (commented out
+                // code below), but we should be sure to have a test for this
+                // somewhere. Currently I don't think it's possible to actually
+                // exercise this with just Rust code, so let's wait until we get
+                // some tests to enable this path.
+                _ => bail!("multi-value returns from adapters not supported yet"),
+                // _ => {
+                //     let expr = js.stack.join(", ");
+                //     js.stack.truncate(0);
+                //     js.prelude(&format!("return [{}];", expr));
+                // }
+            }
+        } else {
+            assert_eq!(js.stack.len(), adapter.results.len());
+            match js.stack.len() {
+                0 => {}
+                1 => {
+                    let val = js.pop();
+                    js.prelude(&format!("return {};", val));
+                }
+
+                // TODO: this should be pretty trivial to support (commented out
+                // code below), but we should be sure to have a test for this
+                // somewhere. Currently I don't think it's possible to actually
+                // exercise this with just Rust code, so let's wait until we get
+                // some tests to enable this path.
+                _ => bail!("multi-value returns from adapters not supported yet"),
+                // _ => {
+                //     let expr = js.stack.join(", ");
+                //     js.stack.truncate(0);
+                //     js.prelude(&format!("return [{}];", expr));
+                // }
+            }
         }
         assert!(js.stack.is_empty());
 
@@ -488,13 +515,18 @@ impl<'a, 'b> JsBuilder<'a, 'b> {
         let val = self.pop();
         let malloc = self.cx.export_name_of(malloc);
         let i = self.tmp();
+        let mut wasm_or_ssvm = "wasm";
+        if self.cx.config.mode.ssvm() {
+            wasm_or_ssvm = "vm";
+        }
         let realloc = match realloc {
-            Some(f) => format!(", wasm.{}", self.cx.export_name_of(f)),
+            Some(f) => format!(", {}.{}", wasm_or_ssvm, self.cx.export_name_of(f)),
             None => String::new(),
         };
         self.prelude(&format!(
-            "var ptr{i} = {f}({0}, wasm.{malloc}{realloc});",
+            "var ptr{i} = {f}({0}, {wos}.{malloc}{realloc});",
             val,
+            wos = wasm_or_ssvm,
             i = i,
             f = pass,
             malloc = malloc,
@@ -897,9 +929,14 @@ fn instruction(js: &mut JsBuilder, instr: &Instruction, log_error: &mut bool) ->
             let func = js.cx.pass_to_wasm_function(*kind, *mem)?;
             let malloc = js.cx.export_name_of(*malloc);
             let i = js.tmp();
+            let mut wasm_or_ssvm = "wasm";
+            if js.cx.config.mode.ssvm() {
+                wasm_or_ssvm = "vm";
+            }
             js.prelude(&format!(
-                "var ptr{i} = {f}({0}, wasm.{malloc});",
+                "var ptr{i} = {f}({0}, {wos}.{malloc});",
                 val,
+                wos = wasm_or_ssvm,
                 i = i,
                 f = func,
                 malloc = malloc,
@@ -919,13 +956,18 @@ fn instruction(js: &mut JsBuilder, instr: &Instruction, log_error: &mut bool) ->
             let i = js.tmp();
             let malloc = js.cx.export_name_of(*malloc);
             let val = js.pop();
+            let mut wasm_or_ssvm = "wasm";
+            if js.cx.config.mode.ssvm() {
+                wasm_or_ssvm = "vm";
+            }
             let realloc = match realloc {
-                Some(f) => format!(", wasm.{}", js.cx.export_name_of(*f)),
+                Some(f) => format!(", {}.{}", wasm_or_ssvm, js.cx.export_name_of(*f)),
                 None => String::new(),
             };
             js.prelude(&format!(
-                "var ptr{i} = isLikeNone({0}) ? 0 : {f}({0}, wasm.{malloc}{realloc});",
+                "var ptr{i} = isLikeNone({0}) ? 0 : {f}({0}, {wos}.{malloc}{realloc});",
                 val,
+                wos = wasm_or_ssvm,
                 i = i,
                 f = func,
                 malloc = malloc,
@@ -942,9 +984,14 @@ fn instruction(js: &mut JsBuilder, instr: &Instruction, log_error: &mut bool) ->
             let i = js.tmp();
             let malloc = js.cx.export_name_of(*malloc);
             let val = js.pop();
+            let mut wasm_or_ssvm = "wasm";
+            if js.cx.config.mode.ssvm() {
+                wasm_or_ssvm = "vm";
+            }
             js.prelude(&format!(
-                "var ptr{i} = isLikeNone({0}) ? 0 : {f}({0}, wasm.{malloc});",
+                "var ptr{i} = isLikeNone({0}) ? 0 : {f}({0}, {wos}.{malloc});",
                 val,
+                wos = wasm_or_ssvm,
                 i = i,
                 f = func,
                 malloc = malloc,
@@ -967,9 +1014,14 @@ fn instruction(js: &mut JsBuilder, instr: &Instruction, log_error: &mut bool) ->
             let func = js.cx.pass_to_wasm_function(*kind, *mem)?;
             let malloc = js.cx.export_name_of(*malloc);
             let i = js.tmp();
+            let mut wasm_or_ssvm = "wasm";
+            if js.cx.config.mode.ssvm() {
+                wasm_or_ssvm = "vm";
+            }
             js.prelude(&format!(
-                "var ptr{i} = {f}({val}, wasm.{malloc});",
+                "var ptr{i} = {f}({val}, {wos}.{malloc});",
                 val = val,
+                wos = wasm_or_ssvm,
                 i = i,
                 f = func,
                 malloc = malloc,
