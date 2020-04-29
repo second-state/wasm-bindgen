@@ -66,9 +66,9 @@ pub struct ExportedClass {
     is_inspectable: bool,
     /// All readable properties of the class
     readable_properties: Vec<String>,
-    /// Map from field name to type as a string plus whether it has a setter
+    /// Map from field name to type as a string, docs plus whether it has a setter
     /// and it is optional
-    typescript_fields: HashMap<String, (String, bool, bool)>,
+    typescript_fields: HashMap<String, (String, String, bool, bool)>,
 }
 
 const INITIAL_HEAP_VALUES: &[&str] = &["undefined", "null", "true", "false"];
@@ -113,7 +113,7 @@ impl<'a> Context<'a> {
         contents: &str,
         comments: Option<&str>,
     ) -> Result<(), Error> {
-        let definition_name = generate_identifier(export_name, &mut self.defined_identifiers);
+        let definition_name = self.generate_identifier(export_name);
         if contents.starts_with("class") && definition_name != export_name {
             bail!("cannot shadow already defined class `{}`", export_name);
         }
@@ -168,7 +168,10 @@ impl<'a> Context<'a> {
         Ok(())
     }
 
-    pub fn finalize(&mut self, module_name: &str) -> Result<(String, String), Error> {
+    pub fn finalize(
+        &mut self,
+        module_name: &str,
+    ) -> Result<(String, String, Option<String>), Error> {
         // Finalize all bindings for JS classes. This is where we'll generate JS
         // glue for all classes as well as finish up a few final imports like
         // `__wrap` and such.
@@ -289,9 +292,10 @@ impl<'a> Context<'a> {
         &mut self,
         module_name: &str,
         needs_manual_start: bool,
-    ) -> Result<(String, String), Error> {
+    ) -> Result<(String, String, Option<String>), Error> {
         let mut ts = self.typescript.clone();
         let mut js = String::new();
+        let mut start = None;
 
         if let OutputMode::NoModules { global } = &self.config.mode {
             js.push_str(&format!("let {};\n(function() {{\n", global));
@@ -378,7 +382,7 @@ impl<'a> Context<'a> {
                 ));
                 for (id, js) in crate::sorted_iter(&self.wasm_import_definitions) {
                     let import = self.module.imports.get_mut(*id);
-                    import.module = format!("./{}.js", module_name);
+                    import.module = format!("./{}_bg.js", module_name);
                     footer.push_str("\nexport const ");
                     footer.push_str(&import.name);
                     footer.push_str(" = ");
@@ -386,7 +390,7 @@ impl<'a> Context<'a> {
                     footer.push_str(";\n");
                 }
                 if needs_manual_start {
-                    footer.push_str("\nwasm.__wbindgen_start();\n");
+                    start = Some("\nwasm.__wbindgen_start();\n".to_string());
                 }
             }
 
@@ -432,7 +436,7 @@ impl<'a> Context<'a> {
             js = js.replace("\n\n\n", "\n\n");
         }
 
-        Ok((js, ts))
+        Ok((js, ts, start))
     }
 
     fn js_import_header(&self) -> Result<String, Error> {
@@ -855,7 +859,8 @@ impl<'a> Context<'a> {
         let mut fields = class.typescript_fields.keys().collect::<Vec<_>>();
         fields.sort(); // make sure we have deterministic output
         for name in fields {
-            let (ty, has_setter, is_optional) = &class.typescript_fields[name];
+            let (ty, docs, has_setter, is_optional) = &class.typescript_fields[name];
+            ts_dst.push_str(docs);
             ts_dst.push_str("  ");
             if !has_setter {
                 ts_dst.push_str("readonly ");
@@ -873,6 +878,7 @@ impl<'a> Context<'a> {
         ts_dst.push_str("}\n");
 
         self.export(&name, &dst, Some(&class.comments))?;
+        self.typescript.push_str(&class.comments);
         self.typescript.push_str(&ts_dst);
 
         Ok(())
@@ -1730,9 +1736,16 @@ impl<'a> Context<'a> {
                 let add = self.expose_add_to_anyref_table(table, alloc)?;
                 self.global(&format!(
                     "
-                    function handleError(e) {{
-                        const idx = {add}(e);
-                        {wos}.{store}(idx);
+                    function handleError(f) {{
+                        return function () {{
+                            try {{
+                                return f.apply(this, arguments);
+
+                            }} catch (e) {{
+                                const idx = {add}(e);
+                                {wos}.{store}(idx);
+                            }}
+                        }};
                     }}
                     ",
                     wos = wasm_or_ssvm,
@@ -1744,8 +1757,15 @@ impl<'a> Context<'a> {
                 self.expose_add_heap_object();
                 self.global(&format!(
                     "
-                    function handleError(e) {{
-                        {}.{}(addHeapObject(e));
+                    function handleError(f) {{
+                        return function () {{
+                            try {{
+                                return f.apply(this, arguments);
+
+                            }} catch (e) {{
+                                {}.{}(addHeapObject(e));
+                            }}
+                        }};
                     }}
                     ",
                     wasm_or_ssvm,
@@ -1762,20 +1782,27 @@ impl<'a> Context<'a> {
         }
         self.global(
             "\
-            function logError(e) {
-                let error = (function () {
+            function logError(f) {
+                return function () {
                     try {
-                        return e instanceof Error \
-                            ? `${e.message}\\n\\nStack:\\n${e.stack}` \
-                            : e.toString();
-                    } catch(_) {
-                        return \"<failed to stringify thrown value>\";
+                        return f.apply(this, arguments);
+
+                    } catch (e) {
+                        let error = (function () {
+                            try {
+                                return e instanceof Error \
+                                    ? `${e.message}\\n\\nStack:\\n${e.stack}` \
+                                    : e.toString();
+                            } catch(_) {
+                                return \"<failed to stringify thrown value>\";
+                            }
+                        }());
+                        console.error(\"wasm-bindgen: imported JS function that \
+                                        was not marked as `catch` threw an error:\", \
+                                        error);
+                        throw e;
                     }
-                }());
-                console.error(\"wasm-bindgen: imported JS function that \
-                                was not marked as `catch` threw an error:\", \
-                                error);
-                throw e;
+                };
             }
             ",
         );
@@ -1989,6 +2016,18 @@ impl<'a> Context<'a> {
         require_class(&mut self.exported_classes, name).wrap_needed = true;
     }
 
+    fn add_module_import(&mut self, module: String, name: &str, actual: &str) {
+        let rename = if name == actual {
+            None
+        } else {
+            Some(actual.to_string())
+        };
+        self.js_imports
+            .entry(module)
+            .or_insert(Vec::new())
+            .push((name.to_string(), rename));
+    }
+
     fn import_name(&mut self, import: &JsImport) -> Result<String, Error> {
         if let Some(name) = self.imported_names.get(&import.name) {
             let mut name = name.clone();
@@ -1999,30 +2038,17 @@ impl<'a> Context<'a> {
             return Ok(name.clone());
         }
 
-        let js_imports = &mut self.js_imports;
-        let mut add_module_import = |module: String, name: &str, actual: &str| {
-            let rename = if name == actual {
-                None
-            } else {
-                Some(actual.to_string())
-            };
-            js_imports
-                .entry(module)
-                .or_insert(Vec::new())
-                .push((name.to_string(), rename));
-        };
-
         let mut name = match &import.name {
             JsImportName::Module { module, name } => {
-                let unique_name = generate_identifier(name, &mut self.defined_identifiers);
-                add_module_import(module.clone(), name, &unique_name);
+                let unique_name = self.generate_identifier(name);
+                self.add_module_import(module.clone(), name, &unique_name);
                 unique_name
             }
 
             JsImportName::LocalModule { module, name } => {
-                let unique_name = generate_identifier(name, &mut self.defined_identifiers);
+                let unique_name = self.generate_identifier(name);
                 let module = self.config.local_module_name(module);
-                add_module_import(module, name, &unique_name);
+                self.add_module_import(module, name, &unique_name);
                 unique_name
             }
 
@@ -2034,8 +2060,8 @@ impl<'a> Context<'a> {
                 let module = self
                     .config
                     .inline_js_module_name(unique_crate_identifier, *snippet_idx_in_crate);
-                let unique_name = generate_identifier(name, &mut self.defined_identifiers);
-                add_module_import(module, name, &unique_name);
+                let unique_name = self.generate_identifier(name);
+                self.add_module_import(module, name, &unique_name);
                 unique_name
             }
 
@@ -2065,7 +2091,7 @@ impl<'a> Context<'a> {
             }
 
             JsImportName::Global { name } => {
-                let unique_name = generate_identifier(name, &mut self.defined_identifiers);
+                let unique_name = self.generate_identifier(name);
                 if unique_name != *name {
                     bail!("cannot import `{}` from two locations", name);
                 }
@@ -2122,6 +2148,7 @@ impl<'a> Context<'a> {
     }
 
     pub fn generate(&mut self) -> Result<(), Error> {
+        self.prestore_global_import_identifiers()?;
         for (id, adapter) in crate::sorted_iter(&self.wit.adapters) {
             let instrs = match &adapter.kind {
                 AdapterKind::Import { .. } => continue,
@@ -2148,6 +2175,41 @@ impl<'a> Context<'a> {
             self.process_package_json(path)?;
         }
 
+        Ok(())
+    }
+
+    /// Registers import names for all `Global` imports first before we actually
+    /// process any adapters.
+    ///
+    /// `Global` names must be imported as their exact name, so if the same name
+    /// from a global is also imported from a module we have to be sure to
+    /// import the global first to ensure we don't shadow the actual global
+    /// value. Otherwise we have no way of accessing the global value!
+    ///
+    /// This function will iterate through the import map up-front and generate
+    /// a cache entry for each import name which is a `Global`.
+    fn prestore_global_import_identifiers(&mut self) -> Result<(), Error> {
+        for import in self.aux.import_map.values() {
+            let js = match import {
+                AuxImport::Value(AuxValue::Bare(js))
+                | AuxImport::Value(AuxValue::ClassGetter(js, ..))
+                | AuxImport::Value(AuxValue::Getter(js, ..))
+                | AuxImport::Value(AuxValue::ClassSetter(js, ..))
+                | AuxImport::Value(AuxValue::Setter(js, ..))
+                | AuxImport::ValueWithThis(js, ..)
+                | AuxImport::Instanceof(js)
+                | AuxImport::Static(js)
+                | AuxImport::StructuralClassGetter(js, ..)
+                | AuxImport::StructuralClassSetter(js, ..)
+                | AuxImport::IndexingGetterOfClass(js)
+                | AuxImport::IndexingSetterOfClass(js)
+                | AuxImport::IndexingDeleterOfClass(js) => js,
+                _ => continue,
+            };
+            if let JsImportName::Global { .. } = js.name {
+                self.import_name(js)?;
+            }
+        }
         Ok(())
     }
 
@@ -2216,6 +2278,8 @@ impl<'a> Context<'a> {
             js_doc,
             code,
             might_be_optional_field,
+            catch,
+            log_error,
         } = builder
             .process(&adapter, instrs, arg_names, export_fn)
             .with_context(|| match kind {
@@ -2235,6 +2299,9 @@ impl<'a> Context<'a> {
         // on what's being exported.
         match kind {
             Kind::Export(export) => {
+                assert_eq!(catch, false);
+                assert_eq!(log_error, false);
+
                 let ts_sig = match export.generate_typescript {
                     true => Some(ts_sig.as_str()),
                     false => None,
@@ -2291,10 +2358,20 @@ impl<'a> Context<'a> {
                 }
             }
             Kind::Import(core) => {
-                self.wasm_import_definitions
-                    .insert(core, format!("function{}", code));
+                let code = if catch {
+                    format!("handleError(function{})", code)
+                } else if log_error {
+                    format!("logError(function{})", code)
+                } else {
+                    format!("function{}", code)
+                };
+
+                self.wasm_import_definitions.insert(core, code);
             }
             Kind::Adapter => {
+                assert_eq!(catch, false);
+                assert_eq!(log_error, false);
+
                 self.globals.push_str("function ");
                 self.globals.push_str(&self.adapter_name(id));
                 self.globals.push_str(&code);
@@ -2972,10 +3049,23 @@ impl<'a> Context<'a> {
             self.typescript
                 .push_str(&format!("export enum {} {{", enum_.name));
         }
-        for (name, value) in enum_.variants.iter() {
+        for (name, value, comments) in enum_.variants.iter() {
+            let variant_docs = if comments.is_empty() {
+                String::new()
+            } else {
+                format_doc_comments(&comments, None)
+            };
+            if !variant_docs.is_empty() {
+                variants.push_str("\n");
+                variants.push_str(&variant_docs);
+            }
             variants.push_str(&format!("{}:{},", name, value));
             if enum_.generate_typescript {
-                self.typescript.push_str(&format!("\n  {},", name));
+                self.typescript.push_str("\n");
+                if !variant_docs.is_empty() {
+                    self.typescript.push_str(&variant_docs);
+                }
+                self.typescript.push_str(&format!("  {},", name));
             }
         }
         if enum_.generate_typescript {
@@ -2998,10 +3088,10 @@ impl<'a> Context<'a> {
     }
 
     fn process_package_json(&mut self, path: &Path) -> Result<(), Error> {
-        if !self.config.mode.nodejs() && !self.config.mode.ssvm() && !self.config.mode.bundler() {
+        if self.config.mode.no_modules() {
             bail!(
                 "NPM dependencies have been specified in `{}` but \
-                 this is only compatible with the `bundler` and `nodejs` targets",
+                 this is incompatible with the `no-modules` target",
                 path.display(),
             );
         }
@@ -3189,6 +3279,21 @@ impl<'a> Context<'a> {
     fn adapter_name(&self, id: AdapterId) -> String {
         format!("__wbg_adapter_{}", id.0)
     }
+
+    fn generate_identifier(&mut self, name: &str) -> String {
+        let cnt = self
+            .defined_identifiers
+            .entry(name.to_string())
+            .or_insert(0);
+        *cnt += 1;
+        // We want to mangle `default` at once, so we can support default exports and don't generate
+        // invalid glue code like this: `import { default } from './module';`.
+        if *cnt == 1 && name != "default" {
+            name.to_string()
+        } else {
+            format!("{}{}", name, cnt)
+        }
+    }
 }
 
 fn check_duplicated_getter_and_setter_names(
@@ -3234,18 +3339,6 @@ fn check_duplicated_getter_and_setter_names(
         }
     }
     Ok(())
-}
-
-fn generate_identifier(name: &str, used_names: &mut HashMap<String, usize>) -> String {
-    let cnt = used_names.entry(name.to_string()).or_insert(0);
-    *cnt += 1;
-    // We want to mangle `default` at once, so we can support default exports and don't generate
-    // invalid glue code like this: `import { default } from './module';`.
-    if *cnt == 1 && name != "default" {
-        name.to_string()
-    } else {
-        format!("{}{}", name, cnt)
-    }
 }
 
 fn format_doc_comments(comments: &str, js_doc_comments: Option<String>) -> String {
@@ -3298,7 +3391,7 @@ impl ExportedClass {
     fn push_getter(&mut self, docs: &str, field: &str, js: &str, ret_ty: Option<&str>) {
         self.push_accessor(docs, field, js, "get ");
         if let Some(ret_ty) = ret_ty {
-            self.push_accessor_ts(field, ret_ty);
+            self.push_accessor_ts(docs, field, ret_ty, false);
         }
         self.readable_properties.push(field.to_string());
     }
@@ -3315,20 +3408,30 @@ impl ExportedClass {
     ) {
         self.push_accessor(docs, field, js, "set ");
         if let Some(ret_ty) = ret_ty {
-            let (has_setter, is_optional) = self.push_accessor_ts(field, ret_ty);
-            *has_setter = true;
+            let is_optional = self.push_accessor_ts(docs, field, ret_ty, true);
             *is_optional = might_be_optional_field;
         }
     }
 
-    fn push_accessor_ts(&mut self, field: &str, ret_ty: &str) -> (&mut bool, &mut bool) {
-        let (ty, has_setter, is_optional) = self
+    fn push_accessor_ts(
+        &mut self,
+        docs: &str,
+        field: &str,
+        ret_ty: &str,
+        is_setter: bool,
+    ) -> &mut bool {
+        let (ty, accessor_docs, has_setter, is_optional) = self
             .typescript_fields
             .entry(field.to_string())
             .or_insert_with(Default::default);
 
         *ty = ret_ty.to_string();
-        (has_setter, is_optional)
+        // Deterministic output: always use the getter's docs if available
+        if !docs.is_empty() && (accessor_docs.is_empty() || !is_setter) {
+            *accessor_docs = docs.to_owned();
+        }
+        *has_setter |= is_setter;
+        is_optional
     }
 
     fn push_accessor(&mut self, docs: &str, field: &str, js: &str, prefix: &str) {
@@ -3338,27 +3441,6 @@ impl ExportedClass {
         self.contents.push_str(js);
         self.contents.push_str("\n");
     }
-}
-
-#[test]
-fn test_generate_identifier() {
-    let mut used_names: HashMap<String, usize> = HashMap::new();
-    assert_eq!(
-        generate_identifier("someVar", &mut used_names),
-        "someVar".to_string()
-    );
-    assert_eq!(
-        generate_identifier("someVar", &mut used_names),
-        "someVar2".to_string()
-    );
-    assert_eq!(
-        generate_identifier("default", &mut used_names),
-        "default1".to_string()
-    );
-    assert_eq!(
-        generate_identifier("default", &mut used_names),
-        "default2".to_string()
-    );
 }
 
 struct MemView {
