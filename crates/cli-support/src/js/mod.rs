@@ -277,7 +277,7 @@ impl<'a> Context<'a> {
             "
             const path = require('path').join(__dirname, '{}');
             const ssvm = require('ssvm');
-            vm = new ssvm.VM(path, imports);
+            vm = new ssvm.VM(path);
         ",
             path.file_name().unwrap().to_str().unwrap()
         ));
