@@ -199,30 +199,30 @@ impl<'a> Context<'a> {
 
         let mut shim = String::new();
 
-        shim.push_str("let imports = {};\n");
+        // shim.push_str("let imports = {};\n");
 
-        if self.config.mode.nodejs_experimental_modules() {
-            for (i, module) in imports.iter().enumerate() {
-                if module.as_str() != PLACEHOLDER_MODULE {
-                    shim.push_str(&format!("import * as import{} from '{}';\n", i, module));
-                }
-            }
-        }
+        // if self.config.mode.nodejs_experimental_modules() {
+        //     for (i, module) in imports.iter().enumerate() {
+        //         if module.as_str() != PLACEHOLDER_MODULE {
+        //             shim.push_str(&format!("import * as import{} from '{}';\n", i, module));
+        //         }
+        //     }
+        // }
 
-        for (i, module) in imports.iter().enumerate() {
-            if module.as_str() == PLACEHOLDER_MODULE {
-                shim.push_str(&format!(
-                    "imports['{0}'] = module.exports;\n",
-                    PLACEHOLDER_MODULE
-                ));
-            } else {
-                if self.config.mode.nodejs_experimental_modules() {
-                    shim.push_str(&format!("imports['{}'] = import{};\n", module, i));
-                } else {
-                    shim.push_str(&format!("imports['{0}'] = require('{0}');\n", module));
-                }
-            }
-        }
+        // for (i, module) in imports.iter().enumerate() {
+        //     if module.as_str() == PLACEHOLDER_MODULE {
+        //         shim.push_str(&format!(
+        //             "imports['{0}'] = module.exports;\n",
+        //             PLACEHOLDER_MODULE
+        //         ));
+        //     } else {
+        //         if self.config.mode.nodejs_experimental_modules() {
+        //             shim.push_str(&format!("imports['{}'] = import{};\n", module, i));
+        //         } else {
+        //             shim.push_str(&format!("imports['{0}'] = require('{0}');\n", module));
+        //         }
+        //     }
+        // }
 
         reset_indentation(&shim)
     }
