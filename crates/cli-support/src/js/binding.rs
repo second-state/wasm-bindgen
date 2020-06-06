@@ -618,9 +618,14 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
             js.string_to_memory_ssvm(*malloc, *realloc);
         }
 
-        Instruction::VectorLoad { kind: _, mem: _, free: _ } => {
+        Instruction::VectorLoad { kind: _, mem: _, free } => {
+            js.cx.export_name_of(*free);
             let call = js.pop();
             js.push(format!("{};", call.replace(".Run(", ".RunUint8Array(")));
+        }
+
+        Instruction::VectorToMemory { kind, malloc, mem } => {
+            js.cx.export_name_of(*malloc);
         }
 
         _ => {}
