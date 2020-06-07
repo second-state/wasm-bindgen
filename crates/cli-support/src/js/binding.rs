@@ -250,6 +250,9 @@ impl<'a, 'b> Builder<'a, 'b> {
                     AdapterType::String => {
                         code.push_str(&format!("if (typeof {0} === 'object') {0} = JSON.stringify({0});\n", arg));
                     },
+                    AdapterType::Vector(_) => {
+                        code.push_str(&format!("if (Buffer.isBuffer({0}) && {0}.byteLength < 4096) {0} = new Uint8Array({0}.buffer.slice({0}.byteOffset, {0}.byteOffset + {0}.byteLength));\n", arg));
+                    },
                     _ => {},
                 }
             }
