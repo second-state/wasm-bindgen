@@ -188,7 +188,14 @@ impl<'a, 'b> Builder<'a, 'b> {
                     if adapter.results.len() == 0 {
                         js.prelude(&format!("{};", val));
                     } else {
-                        js.prelude(&format!("return {};", val));
+                        match val.find("vm.RunUint8Array") {
+                            Some(0) => {
+                                js.prelude(&format!("let b = {};\n return b.byteLength <  Buffer.poolSize ? new Uint8Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)) : b;", val));
+                            }
+                            _ => {
+                                js.prelude(&format!("return {};", val));
+                            }
+                        }
                     }
                 }
 
@@ -251,7 +258,7 @@ impl<'a, 'b> Builder<'a, 'b> {
                         code.push_str(&format!("if (typeof {0} === 'object') {0} = JSON.stringify({0});\n", arg));
                     },
                     AdapterType::Vector(_) => {
-                        code.push_str(&format!("if (Buffer.isBuffer({0}) && {0}.byteLength < 4096) {0} = new Uint8Array({0}.buffer.slice({0}.byteOffset, {0}.byteOffset + {0}.byteLength));\n", arg));
+                        code.push_str(&format!("if (Buffer.isBuffer({0}) && {0}.byteLength < Buffer.poolSize) {0} = new Uint8Array({0}.buffer.slice({0}.byteOffset, {0}.byteOffset + {0}.byteLength));\n", arg));
                     },
                     _ => {},
                 }
@@ -591,9 +598,9 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
                     js.stack.extend(args);
                 }
                 (true, _) => panic!("deferred calls must have no results"),
-                (false, 0) => js.push(format!("{};", call)),
+                (false, 0) => js.push(format!("{}", call)),
                 (false, _n) => {
-                    js.push(format!("{};", call.replace(".Run(", ".RunInt(")))
+                    js.push(format!("{}", call.replace(".Run(", ".RunInt(")))
                 }
             }
         }
@@ -610,7 +617,7 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
 
         Instruction::Standard(wit_walrus::Instruction::MemoryToString(_mem)) => {
             let call = js.pop();
-            js.push(format!("{};", call.replace(".Run(", ".RunString(")));
+            js.push(format!("{}", call.replace(".Run(", ".RunString(")));
         }
 
         Instruction::StringToMemory {
@@ -624,7 +631,7 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
         Instruction::VectorLoad { kind: _, mem: _, free } => {
             js.cx.export_name_of(*free);
             let call = js.pop();
-            js.push(format!("{};", call.replace(".Run(", ".RunUint8Array(")));
+            js.push(format!("{}", call.replace(".Run(", ".RunUint8Array(")));
         }
 
         Instruction::VectorToMemory { kind, malloc, mem } => {
