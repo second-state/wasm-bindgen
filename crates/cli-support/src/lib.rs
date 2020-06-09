@@ -75,6 +75,7 @@ enum OutputMode {
     NoModules { global: String },
     Node { experimental_modules: bool },
     SSVM,
+    Deno,
 }
 
 enum Input {
@@ -160,6 +161,13 @@ impl Bindgen {
     pub fn ssvm(&mut self, node: bool) -> Result<&mut Bindgen, Error> {
         if node {
             self.switch_mode(OutputMode::SSVM, "--target ssvm")?;
+        }
+        Ok(self)
+    }
+
+    pub fn deno(&mut self, deno: bool) -> Result<&mut Bindgen, Error> {
+        if deno {
+            self.switch_mode(OutputMode::Deno, "--target deno")?;
         }
         Ok(self)
     }
@@ -552,6 +560,13 @@ impl OutputMode {
     fn ssvm(&self) -> bool {
         match self {
             OutputMode::SSVM { .. } => true,
+            _ => false,
+        }
+    }
+
+    fn deno(&self) -> bool {
+        match self {
+            OutputMode::Deno { .. } => true,
             _ => false,
         }
     }

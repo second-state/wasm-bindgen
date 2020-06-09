@@ -126,6 +126,7 @@ impl<'a> Context<'a> {
             OutputMode::Node {
                 experimental_modules: false,
             } |
+            OutputMode::Deno |
             OutputMode::SSVM => {
                 if contents.starts_with("class") {
                     format!("{}\nmodule.exports.{1} = {1};\n", contents, export_name)
@@ -319,6 +320,7 @@ impl<'a> Context<'a> {
 
             // With normal CommonJS node we need to defer requiring the wasm
             // until the end so most of our own exports are hooked up
+            OutputMode::Deno |
             OutputMode::Node {
                 experimental_modules: false,
             } => {
@@ -456,6 +458,7 @@ impl<'a> Context<'a> {
                 }
             }
 
+            OutputMode::Deno |
             OutputMode::Node {
                 experimental_modules: false,
             } => {
@@ -812,7 +815,7 @@ impl<'a> Context<'a> {
                     })
             ));
 
-            if self.config.mode.nodejs() || self.config.mode.ssvm() {
+            if self.config.mode.deno() || self.config.mode.nodejs() || self.config.mode.ssvm() {
                 // `util.inspect` must be imported in Node.js to define [inspect.custom]
                 let module_name = self.import_name(&JsImport {
                     name: JsImportName::Module {
@@ -999,7 +1002,7 @@ impl<'a> Context<'a> {
         // but it does have `Buffer::write` which has similar semantics but
         // doesn't require creating intermediate view using `subarray`
         // and also has `Buffer::byteLength` to calculate size upfront.
-        if self.config.mode.nodejs() || self.config.mode.ssvm() {
+        if self.config.mode.deno() || self.config.mode.nodejs() || self.config.mode.ssvm() {
             let get_buf = self.expose_node_buffer_memory(memory);
             let ret = MemView {
                 name: "passStringToWasm",
@@ -1295,7 +1298,7 @@ impl<'a> Context<'a> {
     }
 
     fn expose_text_processor(&mut self, s: &str, args: &str) -> Result<(), Error> {
-        if self.config.mode.nodejs() || self.config.mode.ssvm() {
+        if self.config.mode.deno() || self.config.mode.nodejs() || self.config.mode.ssvm() {
             let name = self.import_name(&JsImport {
                 name: JsImportName::Module {
                     module: "util".to_string(),
@@ -1516,7 +1519,11 @@ impl<'a> Context<'a> {
     }
 
     fn expose_node_buffer_memory(&mut self, memory: MemoryId) -> MemView {
-        self.memview("getNodeBufferMemory", "Buffer.from", memory)
+        if self.config.mode.deno() {
+            self.memview("getNodeBufferMemory", "new Uint8Array", memory)
+        } else {
+            self.memview("getNodeBufferMemory", "Buffer.from", memory)
+        }
     }
 
     fn expose_int8_memory(&mut self, memory: MemoryId) -> MemView {

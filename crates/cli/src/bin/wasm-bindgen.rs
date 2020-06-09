@@ -99,6 +99,7 @@ fn rmain(args: &Args) -> Result<(), Error> {
             "no-modules" => b.no_modules(true)?,
             "nodejs" => b.nodejs(true)?,
             "ssvm" => b.ssvm(true)?,
+            "deno" => b.deno(true)?,
             s => bail!("invalid encode-into mode: `{}`", s),
         };
     }
