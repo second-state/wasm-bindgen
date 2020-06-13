@@ -126,12 +126,18 @@ impl<'a> Context<'a> {
             OutputMode::Node {
                 experimental_modules: false,
             } |
-            OutputMode::Deno |
             OutputMode::SSVM => {
                 if contents.starts_with("class") {
                     format!("{}\nmodule.exports.{1} = {1};\n", contents, export_name)
                 } else {
                     format!("module.exports.{} = {};\n", export_name, contents)
+                }
+            }
+            OutputMode::Deno => {
+                if contents.starts_with("class") {
+                    format!("{}\nexport {{ {1} }};\n", contents, export_name)
+                } else {
+                    format!("const {0} = {1};\nexport {{ {0} }};", export_name, contents)
                 }
             }
             OutputMode::NoModules { .. } => {
@@ -212,10 +218,17 @@ impl<'a> Context<'a> {
 
         for (i, module) in imports.iter().enumerate() {
             if module.as_str() == PLACEHOLDER_MODULE {
-                shim.push_str(&format!(
-                    "imports['{0}'] = module.exports;\n",
-                    PLACEHOLDER_MODULE
-                ));
+                if self.config.mode.deno() {
+                    shim.push_str(&format!(
+                        "imports['{0}'] = {{}};\n",
+                        PLACEHOLDER_MODULE
+                    ));
+                } else {
+                    shim.push_str(&format!(
+                        "imports['{0}'] = module.exports;\n",
+                        PLACEHOLDER_MODULE
+                    ));
+                }
             } else {
                 if self.config.mode.nodejs_experimental_modules() {
                     shim.push_str(&format!("imports['{}'] = import{};\n", module, i));
@@ -271,6 +284,25 @@ impl<'a> Context<'a> {
         reset_indentation(&shim)
     }
 
+    fn generate_deno_wasm_loading(&self, path: &Path) -> String {
+        let mut shim = String::new();
+
+        shim.push_str(&format!(
+            "
+            import * as path from 'https://deno.land/std/path/mod.ts';
+            const __dirname = path.dirname(new URL(import.meta.url).pathname);
+            const p = path.join(__dirname, '{}');
+            const bytes = Deno.readFileSync(p);
+            const wasmModule = new WebAssembly.Module(bytes);
+            const wasmInstance = new WebAssembly.Instance(wasmModule, imports);
+            wasm = wasmInstance.exports;
+        ",
+            path.file_name().unwrap().to_str().unwrap()
+        ));
+
+        reset_indentation(&shim)
+    }
+
     fn generate_ssvm_wasm_loading(&self, path: &Path) -> String {
         let mut shim = String::new();
 
@@ -320,7 +352,6 @@ impl<'a> Context<'a> {
 
             // With normal CommonJS node we need to defer requiring the wasm
             // until the end so most of our own exports are hooked up
-            OutputMode::Deno |
             OutputMode::Node {
                 experimental_modules: false,
             } => {
@@ -339,6 +370,42 @@ impl<'a> Context<'a> {
 
                 footer.push_str(
                     &self.generate_node_wasm_loading(&Path::new(&format!(
+                        "./{}_bg.wasm",
+                        module_name
+                    ))),
+                );
+
+                if needs_manual_start {
+                    footer.push_str("wasm.__wbindgen_start();\n");
+                }
+            }
+
+            OutputMode::Deno => {
+                js.push_str(&self.generate_node_imports());
+
+                js.push_str("let wasm;\n");
+
+                for (id, js) in crate::sorted_iter(&self.wasm_import_definitions) {
+                    let import = self.module.imports.get_mut(*id);
+                    footer.push_str("\nconst ");
+                    footer.push_str(&import.name);
+                    footer.push_str(" = ");
+                    footer.push_str(js.trim());
+                    footer.push_str(";\n");
+                    footer.push_str("export { ");
+                    footer.push_str(&import.name);
+                    footer.push_str(" };\n");
+                    footer.push_str("imports['");
+                    footer.push_str(PLACEHOLDER_MODULE);
+                    footer.push_str("']['");
+                    footer.push_str(&import.name);
+                    footer.push_str("'] = ");
+                    footer.push_str(&import.name);
+                    footer.push_str(";\n");
+                }
+
+                footer.push_str(
+                    &self.generate_deno_wasm_loading(&Path::new(&format!(
                         "./{}_bg.wasm",
                         module_name
                     ))),
@@ -458,7 +525,7 @@ impl<'a> Context<'a> {
                 }
             }
 
-            OutputMode::Deno |
+            OutputMode::SSVM |
             OutputMode::Node {
                 experimental_modules: false,
             } => {
@@ -480,9 +547,9 @@ impl<'a> Context<'a> {
                 }
             }
 
-            OutputMode::SSVM => {
+            OutputMode::Deno => {
                 for (module, items) in crate::sorted_iter(&self.js_imports) {
-                    imports.push_str("const { ");
+                    imports.push_str("import { ");
                     for (i, (item, rename)) in items.iter().enumerate() {
                         if i > 0 {
                             imports.push_str(", ");
@@ -493,9 +560,9 @@ impl<'a> Context<'a> {
                             imports.push_str(other)
                         }
                     }
-                    imports.push_str(" } = require(String.raw`");
+                    imports.push_str(" } from '");
                     imports.push_str(module);
-                    imports.push_str("`);\n");
+                    imports.push_str("';\n");
                 }
             }
 
@@ -1298,7 +1365,7 @@ impl<'a> Context<'a> {
     }
 
     fn expose_text_processor(&mut self, s: &str, args: &str) -> Result<(), Error> {
-        if self.config.mode.deno() || self.config.mode.nodejs() || self.config.mode.ssvm() {
+        if self.config.mode.nodejs() || self.config.mode.ssvm() {
             let name = self.import_name(&JsImport {
                 name: JsImportName::Module {
                     module: "util".to_string(),
@@ -1307,7 +1374,9 @@ impl<'a> Context<'a> {
                 fields: Vec::new(),
             })?;
             self.global(&format!("let cached{} = new {}{};", s, name, args));
-        } else if !self.config.mode.always_run_in_browser() {
+        } else if self.config.mode.deno() || self.config.mode.always_run_in_browser(){
+            self.global(&format!("let cached{0} = new {0}{1};", s, args));
+        } else {
             self.global(&format!(
                 "
                     const l{0} = typeof {0} === 'undefined' ? \
@@ -1316,8 +1385,6 @@ impl<'a> Context<'a> {
                 s
             ));
             self.global(&format!("let cached{0} = new l{0}{1};", s, args));
-        } else {
-            self.global(&format!("let cached{0} = new {0}{1};", s, args));
         }
 
         Ok(())
@@ -1520,10 +1587,9 @@ impl<'a> Context<'a> {
 
     fn expose_node_buffer_memory(&mut self, memory: MemoryId) -> MemView {
         if self.config.mode.deno() {
-            self.memview("getNodeBufferMemory", "new Uint8Array", memory)
-        } else {
-            self.memview("getNodeBufferMemory", "Buffer.from", memory)
+            self.add_module_import("https://deno.land/std/node/buffer.ts".to_string(), "Buffer", "Buffer");
         }
+        self.memview("getNodeBufferMemory", "Buffer.from", memory)
     }
 
     fn expose_int8_memory(&mut self, memory: MemoryId) -> MemView {
