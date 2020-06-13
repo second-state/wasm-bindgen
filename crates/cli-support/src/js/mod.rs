@@ -1587,7 +1587,13 @@ impl<'a> Context<'a> {
 
     fn expose_node_buffer_memory(&mut self, memory: MemoryId) -> MemView {
         if self.config.mode.deno() {
-            self.add_module_import("https://deno.land/std/node/buffer.ts".to_string(), "Buffer", "Buffer");
+            self.import_name(&JsImport {
+                name: JsImportName::Module {
+                    module: "https://deno.land/std/node/buffer.ts".to_string(),
+                    name: "Buffer".to_string(),
+                },
+                fields: Vec::new(),
+            });
         }
         self.memview("getNodeBufferMemory", "Buffer.from", memory)
     }
