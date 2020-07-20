@@ -310,7 +310,7 @@ impl<'a> Context<'a> {
             "
             const path = require('path').join(__dirname, '{}');
             const ssvm = require('ssvm');
-            vm = new ssvm.VM(path);
+            vm = new ssvm.VM(path, {args:process.argv, env:process.env, preopens:{'/': __dirname}});
         ",
             path.file_name().unwrap().to_str().unwrap()
         ));
