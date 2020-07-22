@@ -233,7 +233,9 @@ impl<'a> Context<'a> {
                 if self.config.mode.nodejs_experimental_modules() {
                     shim.push_str(&format!("imports['{}'] = import{};\n", module, i));
                 } else {
-                    shim.push_str(&format!("imports['{0}'] = require('{0}');\n", module));
+                    if module.as_str() != "wasi_snapshot_preview1" {
+                        shim.push_str(&format!("imports['{0}'] = require('{0}');\n", module));
+                    }
                 }
             }
         }
@@ -289,8 +291,18 @@ impl<'a> Context<'a> {
 
         shim.push_str(&format!(
             "
-            import * as path from 'https://deno.land/std/path/mod.ts';
+            import WASI from 'https://deno.land/x/wasi/mod.ts';
             const __dirname = path.dirname(new URL(import.meta.url).pathname);
+            const wasi = new WASI({{
+                args: Deno.args,
+                env: Deno.env,
+                preopens: {{
+                    '/': __dirname
+                }}
+            }});
+            imports = {{ wasi_snapshot_preview1: wasi.exports }};
+
+            import * as path from 'https://deno.land/std/path/mod.ts';
             const p = path.join(__dirname, '{}');
             const bytes = Deno.readFileSync(p);
             const wasmModule = new WebAssembly.Module(bytes);
