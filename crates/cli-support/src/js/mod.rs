@@ -296,7 +296,7 @@ impl<'a> Context<'a> {
             const __dirname = path.dirname(new URL(import.meta.url).pathname);
             const wasi = new WASI({{
                 args: Deno.args,
-                env: Deno.env,
+                env: Deno.env.toObject(),
                 preopens: {{
                     '/': __dirname
                 }}
