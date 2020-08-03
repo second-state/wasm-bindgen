@@ -327,16 +327,22 @@ impl<'a> Context<'a> {
         reset_indentation(&shim)
     }
 
-    fn generate_ssvm_wasm_loading(&self, path: &Path) -> String {
+    fn generate_ssvm_wasm_loading(&self, path: &Path, needs_manual_start: bool) -> String {
+        let enableWasiStart = match needs_manual_start {
+            true => "EnableWasiStartFunction: true, ",
+            false => "",
+        };
+
         let mut shim = String::new();
 
         shim.push_str(&format!(
             "
             const path = require('path').join(__dirname, '{}');
             const ssvm = require('ssvm');
-            vm = new ssvm.VM(path, {{ args:process.argv, env:process.env, preopens:{{'/': __dirname}} }});
+            vm = new ssvm.VM(path, {{ {}args:process.argv, env:process.env, preopens:{{'/': __dirname}} }});
         ",
-            path.file_name().unwrap().to_str().unwrap()
+            path.file_name().unwrap().to_str().unwrap(),
+            enableWasiStart
         ));
 
         reset_indentation(&shim)
@@ -458,7 +464,7 @@ impl<'a> Context<'a> {
                     &self.generate_ssvm_wasm_loading(&Path::new(&format!(
                         "./{}_bg.wasm",
                         module_name
-                    ))),
+                    )), needs_manual_start),
                 );
 
                 if needs_manual_start {
