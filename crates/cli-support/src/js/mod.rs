@@ -462,7 +462,7 @@ impl<'a> Context<'a> {
                 );
 
                 if needs_manual_start {
-                    footer.push_str("vm.Run({ args:process.argv, env:process.env, preopens:{'/': __dirname} });\n");
+                    footer.push_str("vm.Start();\n");
                 }
             }
 
