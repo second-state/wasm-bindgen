@@ -276,10 +276,20 @@ impl<'a> Context<'a> {
 
         shim.push_str(
             "
+            const { WASI } = require('wasi');
+            const wasi = new WASI({
+                args: process.argv,
+                env: process.env,
+                preopens: {
+                    '/': __dirname
+                }
+            });
+            imports = { wasi_snapshot_preview1: wasi.wasiImport };
             const wasmModule = new WebAssembly.Module(bytes);
             const wasmInstance = new WebAssembly.Instance(wasmModule, imports);
             wasm = wasmInstance.exports;
             module.exports.__wasm = wasm;
+            wasi.memory = wasmInstance.exports.memory;
         ",
         );
 
@@ -390,7 +400,7 @@ impl<'a> Context<'a> {
                 );
 
                 if needs_manual_start {
-                    footer.push_str("wasm.__wbindgen_start();\n");
+                    footer.push_str("wasi.start(wasmInstance);\n");
                 }
             }
 
@@ -426,7 +436,7 @@ impl<'a> Context<'a> {
                 );
 
                 if needs_manual_start {
-                    footer.push_str("wasm.__wbindgen_start();\n");
+                    footer.push_str("wasmInstance.exports._start();\n");
                 }
             }
 
@@ -450,6 +460,10 @@ impl<'a> Context<'a> {
                         module_name
                     ))),
                 );
+
+                if needs_manual_start {
+                    footer.push_str("vm.Run({ args:process.argv, env:process.env, preopens:{'/': __dirname} });\n");
+                }
             }
 
             // With Bundlers and modern ES6 support in Node we can simply import
