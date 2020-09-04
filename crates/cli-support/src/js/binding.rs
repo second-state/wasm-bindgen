@@ -405,9 +405,11 @@ fn ssvm_type_check(at: &AdapterType, arg: &str) -> Result<(), Error>  {
         | AdapterType::S8
         | AdapterType::S16
         | AdapterType::S32
+        | AdapterType::S64
         | AdapterType::U8
         | AdapterType::U16
         | AdapterType::U32
+        | AdapterType::U64
         | AdapterType::String => Ok(()),
         AdapterType::Vector(VectorKind::U8) => Ok(()),
         _ => bail!(format!("Type of `{}` is {:?}, only Integer, String or Vector<u8> are supported now", arg, at)),
@@ -618,6 +620,15 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
         Instruction::Standard(wit_walrus::Instruction::MemoryToString(_mem)) => {
             let call = js.pop();
             js.push(format!("{}", call.replace(".Run(", ".RunString(")));
+        }
+
+        Instruction::I64FromLoHi { signed } => {
+            let call = js.pop();
+            if *signed {
+                js.push(format!("{}", call.replace(".Run(", ".RunInt64(")));
+            } else {
+                js.push(format!("{}", call.replace(".Run(", ".RunUInt64(")));
+            };
         }
 
         Instruction::StringToMemory {

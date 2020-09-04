@@ -328,7 +328,7 @@ impl<'a> Context<'a> {
     }
 
     fn generate_ssvm_wasm_loading(&self, path: &Path, needs_manual_start: bool) -> String {
-        let enableWasiStart = match needs_manual_start {
+        let enable_wasi_start = match needs_manual_start {
             true => "EnableWasiStartFunction: true, ",
             false => "",
         };
@@ -342,7 +342,7 @@ impl<'a> Context<'a> {
             vm = new ssvm.VM(path, {{ {}args:process.argv, env:process.env, preopens:{{'/': __dirname}} }});
         ",
             path.file_name().unwrap().to_str().unwrap(),
-            enableWasiStart
+            enable_wasi_start
         ));
 
         reset_indentation(&shim)
