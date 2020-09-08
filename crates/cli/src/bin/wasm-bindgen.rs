@@ -36,6 +36,7 @@ Options:
     --remove-producers-section   Remove the telemetry `producers` section
     --encode-into MODE           Whether or not to use TextEncoder#encodeInto,
                                  valid values are [test, always, never]
+    --enable-aot                 Enable AOT in SSVM mode
     --nodejs                     Deprecated, use `--target nodejs`
     --web                        Deprecated, use `--target web`
     --no-modules                 Deprecated, use `--target no-modules`
@@ -62,6 +63,7 @@ struct Args {
     flag_keep_debug: bool,
     flag_encode_into: Option<String>,
     flag_target: Option<String>,
+    flag_enable_aot: bool,
     arg_input: Option<PathBuf>,
 }
 
@@ -114,6 +116,7 @@ fn rmain(args: &Args) -> Result<(), Error> {
         .remove_name_section(args.flag_remove_name_section)
         .remove_producers_section(args.flag_remove_producers_section)
         .typescript(typescript)
+        .enable_aot(args.flag_enable_aot)
         .omit_imports(args.flag_omit_imports);
     if let Some(ref name) = args.flag_no_modules_global {
         b.no_modules_global(name)?;

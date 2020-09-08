@@ -44,6 +44,7 @@ pub struct Bindgen {
     multi_value: bool,
     wasm_interface_types: bool,
     encode_into: EncodeInto,
+    enable_aot: bool,
 }
 
 pub struct Output {
@@ -115,6 +116,7 @@ impl Bindgen {
             multi_value: multi_value || wasm_interface_types,
             wasm_interface_types,
             encode_into: EncodeInto::Test,
+            enable_aot: false,
         }
     }
 
@@ -240,6 +242,11 @@ impl Bindgen {
 
     pub fn typescript(&mut self, typescript: bool) -> &mut Bindgen {
         self.typescript = typescript;
+        self
+    }
+
+    pub fn enable_aot(&mut self, enable_aot: bool) -> &mut Bindgen {
+        self.enable_aot = enable_aot;
         self
     }
 

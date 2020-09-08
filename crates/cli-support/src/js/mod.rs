@@ -332,6 +332,10 @@ impl<'a> Context<'a> {
             true => "EnableWasiStartFunction: true, ",
             false => "",
         };
+        let enable_aot = match &self.config.enable_aot {
+            true => "EnableAOT: true, ",
+            false => "",
+        };
 
         let mut shim = String::new();
 
@@ -339,9 +343,10 @@ impl<'a> Context<'a> {
             "
             const path = require('path').join(__dirname, '{}');
             const ssvm = require('ssvm');
-            vm = new ssvm.VM(path, {{ {}args:process.argv, env:process.env, preopens:{{'/': __dirname}} }});
+            vm = new ssvm.VM(path, {{ {}{}args:process.argv, env:process.env, preopens:{{'/': __dirname}} }});
         ",
             path.file_name().unwrap().to_str().unwrap(),
+            enable_aot,
             enable_wasi_start
         ));
 
