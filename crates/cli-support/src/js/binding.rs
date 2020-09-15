@@ -607,6 +607,18 @@ fn instruction_ssvm(js: &mut JsBuilder, instr: &Instruction, log_error: &mut boo
             }
         }
 
+        Instruction::Standard(wit_walrus::Instruction::WasmToInt {
+            trap: false,
+            output,
+            ..
+        }) => {
+            let val = js.pop();
+            match output {
+                wit_walrus::ValType::U32 => js.push(format!("{}", val.replace(".RunInt(", ".RunUInt("))),
+                _ => js.push(val),
+            }
+        }
+
         Instruction::Standard(wit_walrus::Instruction::DeferCallCore(_)) => {
             let invoc = Invocation::from(instr, js.cx.module)?;
             match invoc {
