@@ -45,6 +45,7 @@ pub struct Bindgen {
     wasm_interface_types: bool,
     encode_into: EncodeInto,
     enable_aot: bool,
+    enable_ext: bool,
 }
 
 pub struct Output {
@@ -117,6 +118,7 @@ impl Bindgen {
             wasm_interface_types,
             encode_into: EncodeInto::Test,
             enable_aot: false,
+            enable_ext: false,
         }
     }
 
@@ -247,6 +249,11 @@ impl Bindgen {
 
     pub fn enable_aot(&mut self, enable_aot: bool) -> &mut Bindgen {
         self.enable_aot = enable_aot;
+        self
+    }
+
+    pub fn enable_ext(&mut self, enable_ext: bool) -> &mut Bindgen {
+        self.enable_ext = enable_ext;
         self
     }
 

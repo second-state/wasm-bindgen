@@ -37,6 +37,7 @@ Options:
     --encode-into MODE           Whether or not to use TextEncoder#encodeInto,
                                  valid values are [test, always, never]
     --enable-aot                 Enable AOT in SSVM mode
+    --enable-ext                 Requiring ssvm-extensions instead of ssvm
     --nodejs                     Deprecated, use `--target nodejs`
     --web                        Deprecated, use `--target web`
     --no-modules                 Deprecated, use `--target no-modules`
@@ -64,6 +65,7 @@ struct Args {
     flag_encode_into: Option<String>,
     flag_target: Option<String>,
     flag_enable_aot: bool,
+    flag_enable_ext: bool,
     arg_input: Option<PathBuf>,
 }
 
@@ -117,6 +119,7 @@ fn rmain(args: &Args) -> Result<(), Error> {
         .remove_producers_section(args.flag_remove_producers_section)
         .typescript(typescript)
         .enable_aot(args.flag_enable_aot)
+        .enable_ext(args.flag_enable_ext)
         .omit_imports(args.flag_omit_imports);
     if let Some(ref name) = args.flag_no_modules_global {
         b.no_modules_global(name)?;

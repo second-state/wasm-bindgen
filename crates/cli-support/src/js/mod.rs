@@ -336,16 +336,21 @@ impl<'a> Context<'a> {
             true => "EnableAOT: true, ",
             false => "",
         };
+        let requiring = match &self.config.enable_ext {
+            true => "ssvm-extensions",
+            false => "ssvm",
+        };
 
         let mut shim = String::new();
 
         shim.push_str(&format!(
             "
             const path = require('path').join(__dirname, '{}');
-            const ssvm = require('ssvm');
+            const ssvm = require('{}');
             vm = new ssvm.VM(path, {{ {}{}args:process.argv, env:process.env, preopens:{{'/': __dirname}} }});
         ",
             path.file_name().unwrap().to_str().unwrap(),
+            requiring,
             enable_aot,
             enable_wasi_start
         ));
