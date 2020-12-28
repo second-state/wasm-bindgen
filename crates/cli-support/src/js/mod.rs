@@ -303,7 +303,11 @@ impl<'a> Context<'a> {
             "
             import * as path from 'https://deno.land/std/path/mod.ts';
             import WASI from 'https://deno.land/std/wasi/snapshot_preview1.ts';
-            const __dirname = path.dirname(new URL(import.meta.url).pathname);
+            import {{ isWindows }} from 'https://deno.land/std/_util/os.ts';
+            let __dirname = path.dirname(new URL(import.meta.url).pathname);
+            if (isWindows) {{
+                __dirname = __dirname.substring(1);
+            }}
             const wasi = new WASI({{
                 args: Deno.args,
                 env: Deno.env.toObject(),
