@@ -22,7 +22,7 @@ Options:
     --out-dir DIR                Output directory
     --out-name VAR               Set a custom output filename (Without extension. Defaults to crate name)
     --target TARGET              What type of output to generate, valid
-                                 values are [web, bundler, nodejs, no-modules],
+                                 values are [web, bundler, wasmedge, nodejs, no-modules],
                                  and the default is [bundler]
     --no-modules-global VAR      Name of the global variable to initialize
     --browser                    Hint that JS should only be compatible with a browser
@@ -36,8 +36,8 @@ Options:
     --remove-producers-section   Remove the telemetry `producers` section
     --encode-into MODE           Whether or not to use TextEncoder#encodeInto,
                                  valid values are [test, always, never]
-    --enable-aot                 Enable AOT in SSVM mode
-    --enable-ext                 Requiring ssvm-extensions instead of ssvm
+    --enable-aot                 Enable AOT in WasmEdge mode
+    --enable-ext                 Requiring wasmedge-extensions instead of wasmedge
     --nodejs                     Deprecated, use `--target nodejs`
     --web                        Deprecated, use `--target web`
     --no-modules                 Deprecated, use `--target no-modules`
@@ -102,7 +102,7 @@ fn rmain(args: &Args) -> Result<(), Error> {
             "web" => b.web(true)?,
             "no-modules" => b.no_modules(true)?,
             "nodejs" => b.nodejs(true)?,
-            "ssvm" => b.ssvm(true)?,
+            "ssvm" | "wasmedge" => b.ssvm(true)?,
             "deno" => b.deno(true)?,
             s => bail!("invalid encode-into mode: `{}`", s),
         };

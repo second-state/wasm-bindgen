@@ -337,8 +337,8 @@ impl<'a> Context<'a> {
             false => "",
         };
         let requiring = match &self.config.enable_ext {
-            true => "ssvm-extensions",
-            false => "ssvm",
+            true => "wasmedge-extensions",
+            false => "wasmedge",
         };
 
         let mut shim = String::new();
@@ -346,8 +346,8 @@ impl<'a> Context<'a> {
         shim.push_str(&format!(
             "
             const path = require('path').join(__dirname, '{}');
-            const ssvm = require('{}');
-            vm = new ssvm.VM(path, {{ {}{}args:process.argv, env:process.env, preopens:{{'/': __dirname}} }});
+            const wasmedge = require('{}');
+            vm = new wasmedge.VM(path, {{ {}{}args:process.argv, env:process.env, preopens:{{'/': __dirname}} }});
         ",
             path.file_name().unwrap().to_str().unwrap(),
             requiring,
